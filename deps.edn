@@ -6,7 +6,8 @@
   liberator                  {:mvn/version "0.15.2"}
   com.domkm/silk             {:mvn/version "0.1.2"}}
  :aliases
- {:server {:main-opts ["-m" "scramblies.server"]}
+ {:scramble {:main-opts ["-m" "scramblies.scramble"]}
+  :server {:main-opts ["-m" "scramblies.server"]}
   :test {:extra-paths ["test"]
          :extra-deps {com.cognitect/test-runner
                       {:git/url "https://github.com/cognitect-labs/test-runner.git"

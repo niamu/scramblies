@@ -9,3 +9,11 @@
          (every? (fn [[char freq]]
                    (>= (get freq1 char 0) freq))
                  freq2))))
+
+(defn -main
+  [& [str1 str2]]
+  (if (and str1 str2)
+    (prn {:scramble? (scramble? str1 str2)
+          :str1 str1
+          :str2 str2})
+    (prn "Must provide 'str1' and 'str2' query parameters.")))

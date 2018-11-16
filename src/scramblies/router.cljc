@@ -1,12 +1,18 @@
 (ns scramblies.router
-  (:require [scramblies.scramble :as scramble]
+  (:require [scramblies.client :as client]
+            [scramblies.routes :as routes]
+            [scramblies.scramble :as scramble]
+            [scramblies.state :as state]
+            [#?(:clj clojure.edn :cljs cljs.reader) :as edn]
             [domkm.silk :as silk]
+            [om.next :as om]
+            [om.dom :as dom]
             #?@(:clj [[domkm.silk.serve :refer [ring-handler]]
+                      [hiccup.core :as h]
+                      [hiccup.page :as page]
                       [liberator.core :as liberator]])))
 
-(def routes
-  (silk/routes {:index    [[]]
-                :scramble [["api" "scramble"]]}))
+#?(:cljs (enable-console-print!))
 
 (defmulti response identity)
 
@@ -21,19 +27,39 @@
       :handle-malformed (fn [_]
                           "Must provide 'str1' and 'str2' query parameters.")
       :available-media-types ["application/json"
-                              "application/edn"]
+                              "application/edn"
+                              "text/html"]
       :handle-ok (fn [{{{{:keys [query]} :domkm.silk/url} :params} :request}]
                    {:scramble? (scramble/scramble? (get query "str1")
                                                    (get query "str2"))
                     :str1 (get query "str1")
                     :str2 (get query "str2")}))))
 
+#?(:clj
+   (defmethod response :graph
+     [route]
+     (fn [request]
+       {:status 200
+        :headers {"Content-Type" "application/edn"}
+        :body (state/parser {:state state/app-state}
+                            (edn/read-string (slurp (:body request))))})))
+
 (defmethod response :index
   [route]
-  (fn [request]
-    {:status 200
-     :headers {"Content-Type" "text/plain"}
-     :body "Hello World"}))
+  (let [react-root (om/add-root! state/reconciler
+                                 client/ScrambleUI
+                                 #?(:clj nil
+                                    :cljs (.getElementById js/document "app")))]
+    #?(:clj
+       (fn [request]
+         {:status 200
+          :headers {"Content-Type" "text/html"}
+          :body (page/html5
+                 [:head [:title "Scramblies"]]
+                 [:body [:div#app (dom/render-to-str react-root)]
+                  (page/include-js "/js/app.js")])})
+       :cljs
+       react-root)))
 
 (defmethod response :default
   [route]
@@ -48,12 +74,18 @@
 
 #?(:clj
    (def route-handler
-     (ring-handler routes route->response)))
+     (ring-handler routes/routes route->response)))
 
 (defn path->name
   [url]
-  (:domkm.silk/name (silk/arrive routes url)))
+  (:domkm.silk/name (silk/arrive routes/routes url)))
 
 (defn name->path
   [route]
-  (silk/depart routes route))
+  (silk/depart routes/routes route))
+
+;; Mount the React DOM Root corresponding with the current path
+#?(:cljs
+   (-> (.. js/window -location -pathname)
+       path->name
+       route->response))
